@@ -1,0 +1,28 @@
+name: Pets
+version: '${project.version}'
+main: com.zavtrak.pets.PetsPlugin
+api-version: '1.21'
+author: zavtrak
+description: Adds tameable companion pets that follow players.
+load: POSTWORLD
+
+commands:
+  pet:
+    description: Manage your companion pet.
+    usage: |
+      /pet <type>     - summon a pet (wolf, cat, parrot, fox, axolotl, frog, bee, ocelot, panda)
+      /pet remove     - remove your active pet
+      /pet name <txt> - rename your pet
+      /pet list       - list available pet types
+      /pet info       - show info about your active pet
+    aliases: [pets, companion]
+    permission: pets.use
+    permission-message: "§cYou don't have permission to use pets."
+
+permissions:
+  pets.use:
+    description: Allows summoning and managing pets.
+    default: true
+  pets.admin:
+    description: Allows managing pets of other players.
+    default: op
