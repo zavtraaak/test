@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -31,6 +32,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material.icons.outlined.FindInPage
 import androidx.compose.material.icons.outlined.Tab
@@ -40,31 +42,31 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import android.content.Intent
+import com.devin.browser.data.ToolbarPosition
 import com.devin.browser.model.Tab
 import com.devin.browser.util.UrlUtils
-import kotlinx.coroutines.launch
 
 @Composable
 fun BrowserChrome(
@@ -80,37 +82,51 @@ fun BrowserChrome(
     onFindPrev: () -> Unit,
     onFindClose: () -> Unit
 ) {
+    val position by viewModel.toolbarPosition.collectAsState()
+    val isTop = position == ToolbarPosition.TOP
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .statusBarsPadding()
             .background(MaterialTheme.colorScheme.surface)
+            .then(if (isTop) Modifier.statusBarsPadding() else Modifier)
     ) {
-        if (findQuery != null) {
-            FindBar(
-                query = findQuery,
-                onChange = onFindChange,
-                onNext = onFindNext,
-                onPrev = onFindPrev,
-                onClose = onFindClose
-            )
+        if (isTop) {
+            // Top: address bar first, then progress, then bottom-bar of actions
+            if (findQuery != null) {
+                FindBar(findQuery, onFindChange, onFindNext, onFindPrev, onFindClose)
+            } else {
+                AddressBar(viewModel, tab, onReload, onStop)
+            }
+            ProgressLine(tab)
+            ActionRow(viewModel, tab, onBack, onForward, addNavBarPadding = false)
         } else {
-            AddressBar(viewModel = viewModel, tab = tab, onReload = onReload, onStop = onStop)
-        }
-        if (tab?.isLoading == true && tab.progress in 1..99) {
-            LinearProgressIndicator(
-                progress = { tab.progress / 100f },
-                modifier = Modifier.fillMaxWidth().height(2.dp)
+            // Bottom: actions row, then progress (above), then address bar at the very bottom
+            ProgressLine(tab)
+            ActionRow(viewModel, tab, onBack, onForward, addNavBarPadding = false)
+            if (findQuery != null) {
+                FindBar(findQuery, onFindChange, onFindNext, onFindPrev, onFindClose)
+            } else {
+                AddressBar(viewModel, tab, onReload, onStop)
+            }
+            Spacer(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
             )
-        } else {
-            Spacer(modifier = Modifier.height(2.dp))
         }
-        BottomBar(
-            viewModel = viewModel,
-            tab = tab,
-            onBack = onBack,
-            onForward = onForward
+    }
+}
+
+@Composable
+private fun ProgressLine(tab: Tab?) {
+    if (tab?.isLoading == true && tab.progress in 1..99) {
+        LinearProgressIndicator(
+            progress = { tab.progress / 100f },
+            modifier = Modifier.fillMaxWidth().height(2.dp)
         )
+    } else {
+        Spacer(modifier = Modifier.height(2.dp))
     }
 }
 
@@ -128,6 +144,7 @@ private fun AddressBar(
     }
 
     val secure = tab?.url?.startsWith("https://") == true
+    val isStart = tab?.url?.let { viewModel.isStartPage(it) } == true
 
     Row(
         modifier = Modifier
@@ -145,7 +162,7 @@ private fun AddressBar(
                 )
                 .clickable {
                     editing = true
-                    fieldValue = tab?.url ?: ""
+                    fieldValue = if (isStart) "" else tab?.url ?: ""
                 }
                 .padding(horizontal = 12.dp),
             contentAlignment = Alignment.CenterStart
@@ -190,16 +207,23 @@ private fun AddressBar(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(
-                        imageVector = if (secure) Icons.Default.Lock else Icons.Default.LockOpen,
+                        imageVector = when {
+                            isStart -> Icons.Default.Search
+                            secure -> Icons.Default.Lock
+                            else -> Icons.Default.LockOpen
+                        },
                         contentDescription = null,
-                        tint = if (secure) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                        tint = if (secure || isStart) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = tab?.let {
-                            if (it.url.isBlank() || it.url == "about:blank") "Поиск или адрес"
-                            else UrlUtils.host(it.url).ifBlank { it.url }
+                            when {
+                                isStart -> "Поиск или адрес"
+                                else -> UrlUtils.host(it.url).ifBlank { it.url }
+                            }
                         } ?: "Поиск или адрес",
                         style = MaterialTheme.typography.bodyMedium,
                         maxLines = 1,
@@ -226,11 +250,13 @@ private fun AddressBar(
 
         Spacer(modifier = Modifier.width(4.dp))
 
-        IconButton(onClick = { if (tab?.isLoading == true) onStop() else onReload() }) {
-            Icon(
-                imageVector = if (tab?.isLoading == true) Icons.Default.Close else Icons.Default.Refresh,
-                contentDescription = if (tab?.isLoading == true) "Остановить" else "Обновить"
-            )
+        if (!isStart) {
+            IconButton(onClick = { if (tab?.isLoading == true) onStop() else onReload() }) {
+                Icon(
+                    imageVector = if (tab?.isLoading == true) Icons.Default.Close else Icons.Default.Refresh,
+                    contentDescription = if (tab?.isLoading == true) "Остановить" else "Обновить"
+                )
+            }
         }
     }
 }
@@ -271,26 +297,30 @@ private fun FindBar(
 }
 
 @Composable
-private fun BottomBar(
+private fun ActionRow(
     viewModel: BrowserViewModel,
     tab: Tab?,
     onBack: () -> Unit,
-    onForward: () -> Unit
+    onForward: () -> Unit,
+    addNavBarPadding: Boolean
 ) {
     val tabs by viewModel.tabs.collectAsState()
     val tabCount = tabs.size
     var menuOpen by remember { mutableStateOf(false) }
     var bookmarked by remember(tab?.url) { mutableStateOf(false) }
+    val context = LocalContext.current
+    val isStart = tab?.url?.let { viewModel.isStartPage(it) } == true
 
     LaunchedEffect(tab?.url) {
-        bookmarked = tab?.let { viewModel.isBookmarked(it.url) } ?: false
+        bookmarked = tab?.let { if (isStart) false else viewModel.isBookmarked(it.url) } ?: false
     }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(48.dp)
-            .background(MaterialTheme.colorScheme.surface),
+            .background(MaterialTheme.colorScheme.surface)
+            .then(if (addNavBarPadding) Modifier.navigationBarsPadding() else Modifier),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -300,12 +330,15 @@ private fun BottomBar(
         IconButton(onClick = onForward, enabled = tab?.canGoForward == true) {
             Icon(Icons.AutoMirrored.Filled.ArrowForward, "Вперёд")
         }
-        IconButton(onClick = {
-            tab?.let {
-                viewModel.toggleBookmarkActive()
-                bookmarked = !bookmarked
+        IconButton(
+            enabled = !isStart,
+            onClick = {
+                tab?.let {
+                    viewModel.toggleBookmarkActive()
+                    bookmarked = !bookmarked
+                }
             }
-        }) {
+        ) {
             Icon(
                 imageVector = if (bookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                 contentDescription = "Закладка"
@@ -345,16 +378,29 @@ private fun BottomBar(
                 DropdownMenuItem(
                     text = { Text("Поиск на странице") },
                     leadingIcon = { Icon(Icons.Outlined.FindInPage, null) },
-                    onClick = { menuOpen = false; viewModel.startFind() }
+                    onClick = { menuOpen = false; viewModel.startFind() },
+                    enabled = !isStart
+                )
+                DropdownMenuItem(
+                    text = { Text("Поделиться") },
+                    leadingIcon = { Icon(Icons.Default.Share, null) },
+                    enabled = !isStart && tab != null,
+                    onClick = {
+                        menuOpen = false
+                        tab?.let {
+                            val send = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_SUBJECT, it.title)
+                                putExtra(Intent.EXTRA_TEXT, it.url)
+                            }
+                            context.startActivity(Intent.createChooser(send, "Поделиться ссылкой"))
+                        }
+                    }
                 )
                 DropdownMenuItem(
                     text = { Text("Главная") },
                     leadingIcon = { Icon(Icons.Default.Home, null) },
-                    onClick = {
-                        menuOpen = false
-                        val home = viewModel.homePage.value ?: viewModel.searchEngine.value.homeUrl
-                        viewModel.loadInActiveTab(home)
-                    }
+                    onClick = { menuOpen = false; viewModel.goHome() }
                 )
                 DropdownMenuItem(
                     text = { Text("Настройки") },
@@ -378,26 +424,16 @@ private fun TabSwitcher(count: Int, onClick: () -> Unit) {
             modifier = Modifier
                 .size(26.dp)
                 .background(
-                    color = Color.Transparent,
+                    color = MaterialTheme.colorScheme.surfaceVariant,
                     shape = RoundedCornerShape(6.dp)
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .size(26.dp)
-                    .background(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        shape = RoundedCornerShape(6.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (count > 99) "99+" else count.toString(),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
+            Text(
+                text = if (count > 99) "99+" else count.toString(),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
         }
     }
 }

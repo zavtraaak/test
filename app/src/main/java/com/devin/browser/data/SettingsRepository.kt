@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.map
 private val Context.settingsDataStore by preferencesDataStore(name = "settings")
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
+enum class ToolbarPosition { TOP, BOTTOM }
+enum class FontSize { SMALL, NORMAL, LARGE, HUGE }
 
 class SettingsRepository(private val context: Context) {
 
@@ -23,6 +25,10 @@ class SettingsRepository(private val context: Context) {
     private val keyBlockPopups = booleanPreferencesKey("block_popups")
     private val keyDoNotTrack = booleanPreferencesKey("do_not_track")
     private val keyForceDarkSites = booleanPreferencesKey("force_dark_sites")
+    private val keyToolbarPosition = stringPreferencesKey("toolbar_position")
+    private val keySwipeToRefresh = booleanPreferencesKey("swipe_to_refresh")
+    private val keyFontSize = stringPreferencesKey("font_size")
+    private val keyAdblock = booleanPreferencesKey("adblock_enabled")
 
     val searchEngine: Flow<SearchEngine> =
         context.settingsDataStore.data.map { prefs: Preferences ->
@@ -53,6 +59,30 @@ class SettingsRepository(private val context: Context) {
     val forceDarkSites: Flow<Boolean> =
         context.settingsDataStore.data.map { it[keyForceDarkSites] ?: false }
 
+    val toolbarPosition: Flow<ToolbarPosition> =
+        context.settingsDataStore.data.map {
+            when (it[keyToolbarPosition]) {
+                "TOP" -> ToolbarPosition.TOP
+                else -> ToolbarPosition.BOTTOM
+            }
+        }
+
+    val swipeToRefresh: Flow<Boolean> =
+        context.settingsDataStore.data.map { it[keySwipeToRefresh] ?: true }
+
+    val fontSize: Flow<FontSize> =
+        context.settingsDataStore.data.map {
+            when (it[keyFontSize]) {
+                "SMALL" -> FontSize.SMALL
+                "LARGE" -> FontSize.LARGE
+                "HUGE" -> FontSize.HUGE
+                else -> FontSize.NORMAL
+            }
+        }
+
+    val adblockEnabled: Flow<Boolean> =
+        context.settingsDataStore.data.map { it[keyAdblock] ?: false }
+
     suspend fun setSearchEngine(engine: SearchEngine) {
         context.settingsDataStore.edit { it[keySearchEngine] = engine.name }
     }
@@ -81,5 +111,21 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setForceDarkSites(enabled: Boolean) {
         context.settingsDataStore.edit { it[keyForceDarkSites] = enabled }
+    }
+
+    suspend fun setToolbarPosition(p: ToolbarPosition) {
+        context.settingsDataStore.edit { it[keyToolbarPosition] = p.name }
+    }
+
+    suspend fun setSwipeToRefresh(enabled: Boolean) {
+        context.settingsDataStore.edit { it[keySwipeToRefresh] = enabled }
+    }
+
+    suspend fun setFontSize(size: FontSize) {
+        context.settingsDataStore.edit { it[keyFontSize] = size.name }
+    }
+
+    suspend fun setAdblockEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[keyAdblock] = enabled }
     }
 }

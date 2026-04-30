@@ -10,9 +10,11 @@ import com.devin.browser.BrowserApp
 import com.devin.browser.data.BookmarkEntry
 import com.devin.browser.data.HistoryEntry
 import com.devin.browser.data.PasswordRepository
+import com.devin.browser.data.FontSize
 import com.devin.browser.data.SavedCredential
 import com.devin.browser.data.SettingsRepository
 import com.devin.browser.data.ThemeMode
+import com.devin.browser.data.ToolbarPosition
 import com.devin.browser.model.SearchEngine
 import com.devin.browser.model.Tab
 import com.devin.browser.util.UrlUtils
@@ -34,6 +36,7 @@ class BrowserViewModel(
     private val bookmarkDao = app.database.bookmarkDao()
     val passwords: PasswordRepository = app.passwords
     val settings: SettingsRepository = app.settings
+    val webViewStore: TabWebViewStore = TabWebViewStore(app.applicationContext, this)
 
     private val tabIdGen = AtomicLong(1L)
 
@@ -73,6 +76,18 @@ class BrowserViewModel(
     val homePage: StateFlow<String?> = settings.homePage
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
+    val toolbarPosition: StateFlow<ToolbarPosition> = settings.toolbarPosition
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ToolbarPosition.BOTTOM)
+
+    val swipeToRefresh: StateFlow<Boolean> = settings.swipeToRefresh
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    val fontSize: StateFlow<FontSize> = settings.fontSize
+        .stateIn(viewModelScope, SharingStarted.Eagerly, FontSize.NORMAL)
+
+    val adblockEnabled: StateFlow<Boolean> = settings.adblockEnabled
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     val history = historyDao.observeRecent()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -85,19 +100,22 @@ class BrowserViewModel(
         if (_tabs.value.isEmpty()) newTab(incognito = false, url = null)
     }
 
+    fun isStartPage(url: String?): Boolean =
+        url.isNullOrBlank() || url == NEW_TAB_URL || url == "about:blank"
+
     fun activeTab(): Tab? = _tabs.value.firstOrNull { it.id == _activeTabId.value }
 
     fun newTab(incognito: Boolean, url: String? = null): Tab {
-        val home = url ?: homePage.value ?: searchEngine.value.homeUrl
+        val target = url ?: homePage.value ?: NEW_TAB_URL
         val tab = Tab(
             id = tabIdGen.getAndIncrement(),
-            url = home,
+            url = target,
             title = "Новая вкладка",
             isIncognito = incognito
         )
         _tabs.value = _tabs.value + tab
         _activeTabId.value = tab.id
-        _pendingLoad.value = tab.id to home
+        if (target != NEW_TAB_URL) _pendingLoad.value = tab.id to target
         _screen.value = Screen.BROWSER
         return tab
     }
@@ -120,6 +138,7 @@ class BrowserViewModel(
         if (idx < 0) return
         list.removeAt(idx)
         _tabs.value = list
+        webViewStore.release(id)
         if (_activeTabId.value == id) {
             _activeTabId.value = list.getOrNull(idx.coerceAtMost(list.lastIndex))?.id
                 ?: list.firstOrNull()?.id
@@ -128,13 +147,26 @@ class BrowserViewModel(
     }
 
     fun closeAllTabs() {
+        _tabs.value.forEach { webViewStore.release(it.id) }
         _tabs.value = emptyList()
         _activeTabId.value = null
         newTab(incognito = false, url = null)
     }
 
+    override fun onCleared() {
+        super.onCleared()
+        webViewStore.destroyAll()
+    }
+
     fun loadInActiveTab(input: String) {
         val tab = activeTab() ?: newTab(false)
+        if (isStartPage(input)) {
+            updateTab(tab.id) {
+                it.copy(url = NEW_TAB_URL, title = "Новая вкладка", isLoading = false, progress = 0)
+            }
+            _screen.value = Screen.BROWSER
+            return
+        }
         val url = UrlUtils.normalizeOrSearch(input, searchEngine.value)
         updateTab(tab.id) { it.copy(url = url, isLoading = true, progress = 0) }
         _pendingLoad.value = tab.id to url
@@ -172,7 +204,7 @@ class BrowserViewModel(
             )
         }
         val tab = _tabs.value.firstOrNull { it.id == id } ?: return
-        if (!tab.isIncognito && url.startsWith("http")) {
+        if (!tab.isIncognito && url.startsWith("http") && !isStartPage(url)) {
             viewModelScope.launch {
                 historyDao.insert(
                     HistoryEntry(
@@ -265,6 +297,38 @@ class BrowserViewModel(
         viewModelScope.launch { settings.setForceDarkSites(enabled) }
     }
 
+    fun setToolbarPosition(p: ToolbarPosition) {
+        viewModelScope.launch { settings.setToolbarPosition(p) }
+    }
+
+    fun setSwipeToRefresh(enabled: Boolean) {
+        viewModelScope.launch { settings.setSwipeToRefresh(enabled) }
+    }
+
+    fun setFontSize(size: FontSize) {
+        viewModelScope.launch { settings.setFontSize(size) }
+    }
+
+    fun setAdblockEnabled(enabled: Boolean) {
+        viewModelScope.launch { settings.setAdblockEnabled(enabled) }
+    }
+
+    fun clearAllBrowsingData() {
+        viewModelScope.launch {
+            historyDao.clear()
+            webViewStore.clearAllBrowsingData()
+        }
+    }
+
+    fun goHome() {
+        loadInActiveTab(homePage.value ?: NEW_TAB_URL)
+        // ensure start page renders if no home set
+        if (homePage.value == null) {
+            val tab = activeTab() ?: return
+            updateTab(tab.id) { it.copy(url = NEW_TAB_URL, title = "Новая вкладка", progress = 0, isLoading = false) }
+        }
+    }
+
     // Find in page
     fun startFind() {
         _findQuery.value = ""
@@ -285,6 +349,8 @@ class BrowserViewModel(
     }
 
     companion object {
+        const val NEW_TAB_URL = "devin://newtab"
+
         fun factory(app: BrowserApp) = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T =

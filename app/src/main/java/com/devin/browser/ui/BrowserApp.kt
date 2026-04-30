@@ -14,10 +14,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.devin.browser.data.ToolbarPosition
 import com.devin.browser.ui.screens.BookmarksScreen
 import com.devin.browser.ui.screens.HistoryScreen
 import com.devin.browser.ui.screens.PasswordsScreen
 import com.devin.browser.ui.screens.SettingsScreen
+import com.devin.browser.ui.screens.StartPage
 import com.devin.browser.ui.screens.TabsScreen
 
 @Composable
@@ -29,15 +31,17 @@ fun BrowserApp(viewModel: BrowserViewModel) {
 
     var activeWebView by remember { mutableStateOf<WebView?>(null) }
     val findQuery by viewModel.findQuery.collectAsState()
+    val toolbarPosition by viewModel.toolbarPosition.collectAsState()
 
     BackHandler(enabled = true) {
         when (screen) {
             Screen.BROWSER -> {
                 val wv = activeWebView
-                if (wv != null && wv.canGoBack()) wv.goBack()
-                else if (tabs.size > 1 && activeTab != null) viewModel.closeTab(activeTab.id)
-                else { /* allow exit */
-                    // do nothing here; system back will minimize via finish in activity
+                val tab = activeTab
+                when {
+                    tab != null && viewModel.isStartPage(tab.url).not() && wv != null && wv.canGoBack() -> wv.goBack()
+                    tab != null && tabs.size > 1 -> viewModel.closeTab(tab.id)
+                    else -> { /* allow exit */ }
                 }
             }
             Screen.FIND -> {
@@ -54,7 +58,7 @@ fun BrowserApp(viewModel: BrowserViewModel) {
     ) {
         when (screen) {
             Screen.BROWSER, Screen.FIND -> {
-                Column(modifier = Modifier.fillMaxSize()) {
+                val chrome: @Composable () -> Unit = {
                     BrowserChrome(
                         viewModel = viewModel,
                         tab = activeTab,
@@ -74,15 +78,31 @@ fun BrowserApp(viewModel: BrowserViewModel) {
                             viewModel.stopFind()
                         }
                     )
+                }
+                val content: @Composable () -> Unit = {
                     Box(modifier = Modifier.fillMaxSize()) {
                         if (activeTab != null) {
-                            BrowserWebView(
-                                tab = activeTab,
-                                viewModel = viewModel,
-                                modifier = Modifier.fillMaxSize(),
-                                onWebView = { activeWebView = it }
-                            )
+                            if (viewModel.isStartPage(activeTab.url)) {
+                                StartPage(viewModel = viewModel)
+                            } else {
+                                BrowserWebView(
+                                    tab = activeTab,
+                                    viewModel = viewModel,
+                                    modifier = Modifier.fillMaxSize(),
+                                    onWebView = { activeWebView = it }
+                                )
+                            }
                         }
+                    }
+                }
+
+                Column(modifier = Modifier.fillMaxSize()) {
+                    if (toolbarPosition == ToolbarPosition.TOP) {
+                        chrome()
+                        Box(modifier = Modifier.weight(1f)) { content() }
+                    } else {
+                        Box(modifier = Modifier.weight(1f)) { content() }
+                        chrome()
                     }
                 }
             }

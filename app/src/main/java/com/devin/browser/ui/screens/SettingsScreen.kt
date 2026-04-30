@@ -1,7 +1,8 @@
 package com.devin.browser.ui.screens
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -32,14 +33,22 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.devin.browser.BuildConfig
+import com.devin.browser.data.FontSize
 import com.devin.browser.data.ThemeMode
+import com.devin.browser.data.ToolbarPosition
 import com.devin.browser.model.SearchEngine
 import com.devin.browser.ui.BrowserViewModel
 import com.devin.browser.ui.Screen
+import com.devin.browser.util.UpdateChecker
+import com.devin.browser.util.UpdateInfo
+import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen(viewModel: BrowserViewModel) {
@@ -50,13 +59,21 @@ fun SettingsScreen(viewModel: BrowserViewModel) {
     val dnt by viewModel.doNotTrack.collectAsState()
     val forceDark by viewModel.forceDarkSites.collectAsState()
     val home by viewModel.homePage.collectAsState()
+    val toolbarPos by viewModel.toolbarPosition.collectAsState()
+    val font by viewModel.fontSize.collectAsState()
 
     var engineMenu by remember { mutableStateOf(false) }
+    var fontMenu by remember { mutableStateOf(false) }
     var homeDialog by remember { mutableStateOf(false) }
+    var clearConfirm by remember { mutableStateOf(false) }
+    var checkingUpdate by remember { mutableStateOf(false) }
+    var updateResult by remember { mutableStateOf<UpdateInfo?>(null) }
+    var updateError by remember { mutableStateOf<String?>(null) }
 
-    Column(
-        modifier = Modifier.fillMaxSize().statusBarsPadding()
-    ) {
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -74,13 +91,8 @@ fun SettingsScreen(viewModel: BrowserViewModel) {
                     title = "Поисковик по умолчанию",
                     subtitle = engine.displayName,
                     onClick = { engineMenu = true }
-                ) {
-                    Icon(Icons.Default.ExpandMore, null)
-                }
-                DropdownMenu(
-                    expanded = engineMenu,
-                    onDismissRequest = { engineMenu = false }
-                ) {
+                ) { Icon(Icons.Default.ExpandMore, null) }
+                DropdownMenu(expanded = engineMenu, onDismissRequest = { engineMenu = false }) {
                     SearchEngine.entries.forEach { e ->
                         DropdownMenuItem(
                             text = { Text(e.displayName) },
@@ -88,9 +100,7 @@ fun SettingsScreen(viewModel: BrowserViewModel) {
                                 viewModel.setSearchEngine(e)
                                 engineMenu = false
                             },
-                            leadingIcon = {
-                                RadioButton(selected = e == engine, onClick = null)
-                            }
+                            leadingIcon = { RadioButton(selected = e == engine, onClick = null) }
                         )
                     }
                 }
@@ -99,12 +109,45 @@ fun SettingsScreen(viewModel: BrowserViewModel) {
 
             SectionHeader("Внешний вид")
             ThemeRow(theme = theme, onSelect = { viewModel.setThemeMode(it) })
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            ToolbarPositionRow(position = toolbarPos, onSelect = { viewModel.setToolbarPosition(it) })
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            Box {
+                SettingRow(
+                    title = "Размер шрифта",
+                    subtitle = when (font) {
+                        FontSize.SMALL -> "Мелкий (85%)"
+                        FontSize.NORMAL -> "Обычный (100%)"
+                        FontSize.LARGE -> "Крупный (125%)"
+                        FontSize.HUGE -> "Огромный (150%)"
+                    },
+                    onClick = { fontMenu = true }
+                ) { Icon(Icons.Default.ExpandMore, null) }
+                DropdownMenu(expanded = fontMenu, onDismissRequest = { fontMenu = false }) {
+                    FontSize.entries.forEach { f ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    when (f) {
+                                        FontSize.SMALL -> "Мелкий"
+                                        FontSize.NORMAL -> "Обычный"
+                                        FontSize.LARGE -> "Крупный"
+                                        FontSize.HUGE -> "Огромный"
+                                    }
+                                )
+                            },
+                            leadingIcon = { RadioButton(selected = f == font, onClick = null) },
+                            onClick = { viewModel.setFontSize(f); fontMenu = false }
+                        )
+                    }
+                }
+            }
             HorizontalDivider()
 
             SectionHeader("Главная")
             SettingRow(
                 title = "Стартовая страница",
-                subtitle = home ?: "По умолчанию (поисковик)",
+                subtitle = home ?: "Стартовая (плитки + поиск)",
                 onClick = { homeDialog = true }
             )
             HorizontalDivider()
@@ -121,6 +164,11 @@ fun SettingsScreen(viewModel: BrowserViewModel) {
                 subtitle = null,
                 checked = popups,
                 onCheckedChange = { viewModel.setBlockPopups(it) }
+            )
+            SettingRow(
+                title = "Очистить историю и кэш",
+                subtitle = "История, cookies, кэш WebView",
+                onClick = { clearConfirm = true }
             )
             HorizontalDivider()
 
@@ -139,10 +187,48 @@ fun SettingsScreen(viewModel: BrowserViewModel) {
             )
             HorizontalDivider()
 
+            SectionHeader("Обновления")
+            SettingRow(
+                title = if (checkingUpdate) "Проверка…" else "Проверить обновление",
+                subtitle = updateResult?.let {
+                    if (it.isNewer) "Доступна версия ${it.latestVersion}"
+                    else "Установлена последняя версия (${it.currentVersion})"
+                } ?: updateError ?: "Текущая версия: ${BuildConfig.VERSION_NAME}",
+                onClick = {
+                    if (!checkingUpdate) {
+                        checkingUpdate = true
+                        updateError = null
+                        scope.launch {
+                            UpdateChecker.check()
+                                .onSuccess { updateResult = it }
+                                .onFailure { updateError = "Не удалось проверить: ${it.message}" }
+                            checkingUpdate = false
+                        }
+                    }
+                }
+            )
+            updateResult?.let { info ->
+                if (info.isNewer) {
+                    SettingRow(
+                        title = "Скачать обновление",
+                        subtitle = info.downloadUrl ?: info.releaseUrl,
+                        onClick = {
+                            val target = info.downloadUrl ?: info.releaseUrl
+                            context.startActivity(
+                                Intent(Intent.ACTION_VIEW, Uri.parse(target)).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                            )
+                        }
+                    )
+                }
+            }
+            HorizontalDivider()
+
             SectionHeader("О приложении")
             SettingRow(
                 title = "Devin Browser",
-                subtitle = "Приватный мобильный браузер на базе WebView",
+                subtitle = "Версия ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
                 onClick = {}
             )
 
@@ -159,7 +245,7 @@ fun SettingsScreen(viewModel: BrowserViewModel) {
                 OutlinedTextField(
                     value = v,
                     onValueChange = { v = it },
-                    label = { Text("URL (пусто = поисковик)") },
+                    label = { Text("URL (пусто = стартовая)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -172,6 +258,23 @@ fun SettingsScreen(viewModel: BrowserViewModel) {
             },
             dismissButton = {
                 TextButton(onClick = { homeDialog = false }) { Text("Отмена") }
+            }
+        )
+    }
+
+    if (clearConfirm) {
+        AlertDialog(
+            onDismissRequest = { clearConfirm = false },
+            title = { Text("Очистить данные?") },
+            text = { Text("Будут удалены: история, cookies, кэш и формы во всех вкладках.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.clearAllBrowsingData()
+                    clearConfirm = false
+                }) { Text("Очистить") }
+            },
+            dismissButton = {
+                TextButton(onClick = { clearConfirm = false }) { Text("Отмена") }
             }
         )
     }
@@ -258,9 +361,36 @@ private fun ThemeRow(theme: ThemeMode, onSelect: (ThemeMode) -> Unit) {
                 Spacer(modifier = Modifier.padding(end = 8.dp))
                 Text(
                     text = when (mode) {
-                        ThemeMode.SYSTEM -> "Как в системе"
-                        ThemeMode.LIGHT -> "Светлая"
-                        ThemeMode.DARK -> "Тёмная"
+                        ThemeMode.SYSTEM -> "Тема: как в системе"
+                        ThemeMode.LIGHT -> "Тема: светлая"
+                        ThemeMode.DARK -> "Тема: тёмная"
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToolbarPositionRow(
+    position: ToolbarPosition,
+    onSelect: (ToolbarPosition) -> Unit
+) {
+    Column(modifier = Modifier.padding(horizontal = 8.dp)) {
+        ToolbarPosition.entries.forEach { p ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onSelect(p) }
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RadioButton(selected = p == position, onClick = { onSelect(p) })
+                Spacer(modifier = Modifier.padding(end = 8.dp))
+                Text(
+                    text = when (p) {
+                        ToolbarPosition.TOP -> "Тулбар сверху"
+                        ToolbarPosition.BOTTOM -> "Тулбар снизу"
                     }
                 )
             }
