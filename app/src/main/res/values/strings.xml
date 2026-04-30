@@ -1,0 +1,91 @@
+<resources>
+    <string name="app_name">Zavtra Keyboard</string>
+    <string name="ime_label">Zavtra Keyboard</string>
+    <string name="subtype_en">English</string>
+    <string name="subtype_ru">Русский</string>
+
+    <string name="onboarding_title">Welcome to Zavtra Keyboard</string>
+    <string name="onboarding_subtitle">The keyboard with everything you need — fast, customizable, beautiful.</string>
+    <string name="step_enable">1. Enable in system settings</string>
+    <string name="step_select">2. Set as default keyboard</string>
+    <string name="step_done">3. You\'re ready!</string>
+    <string name="enable_button">Enable in Settings</string>
+    <string name="select_button">Choose Input Method</string>
+    <string name="open_settings">Open Keyboard Settings</string>
+    <string name="enabled_badge">Enabled</string>
+    <string name="default_badge">Default</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="section_appearance">Appearance</string>
+    <string name="section_typing">Typing</string>
+    <string name="section_layout">Layout &amp; Languages</string>
+    <string name="section_feedback">Feedback</string>
+    <string name="section_advanced">Advanced</string>
+    <string name="section_about">About</string>
+
+    <string name="theme_label">Theme</string>
+    <string name="theme_system">Follow system</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_amoled">AMOLED Black</string>
+    <string name="preset_label">Preset</string>
+    <string name="material_you_label">Material You (dynamic colors)</string>
+    <string name="accent_label">Accent color</string>
+    <string name="bg_opacity_label">Background opacity</string>
+    <string name="key_radius_label">Key corner radius</string>
+    <string name="key_height_label">Key height</string>
+    <string name="font_size_label">Font size</string>
+    <string name="show_borders">Show key borders</string>
+
+    <string name="enable_ru">Russian (ЙЦУКЕН)</string>
+    <string name="enable_en">English (QWERTY)</string>
+    <string name="show_number_row">Show number row</string>
+    <string name="show_arrows_row">Show arrow / cursor row</string>
+    <string name="long_press_numbers">Long-press top row for numbers</string>
+    <string name="auto_capitalize">Auto-capitalize sentences</string>
+    <string name="smart_punctuation">Smart punctuation (double-space → \". \")</string>
+    <string name="autocorrect">Autocorrect</string>
+    <string name="suggestions">Word suggestions</string>
+    <string name="learn_words">Learn new words</string>
+    <string name="incognito_mode">Incognito mode (no learning, no clipboard history)</string>
+
+    <string name="haptic_label">Haptic feedback</string>
+    <string name="haptic_strength">Haptic strength</string>
+    <string name="sound_label">Key sounds</string>
+    <string name="sound_volume">Sound volume</string>
+
+    <string name="one_handed">One-handed mode</string>
+    <string name="one_handed_off">Off</string>
+    <string name="one_handed_left">Left</string>
+    <string name="one_handed_right">Right</string>
+    <string name="split_mode">Split keyboard (landscape / tablets)</string>
+    <string name="floating_mode">Floating keyboard</string>
+    <string name="swipe_space_cursor">Swipe space bar to move cursor</string>
+    <string name="swipe_backspace_word">Swipe backspace to delete by word</string>
+
+    <string name="export_settings">Export settings</string>
+    <string name="import_settings">Import settings</string>
+    <string name="reset_settings">Reset to defaults</string>
+
+    <string name="preview_hint">Tap to test the keyboard. Try emoji 😀, numbers, and long-press keys.</string>
+    <string name="preview_field_hint">Type here to preview…</string>
+
+    <string name="emoji_recent">Recent</string>
+    <string name="emoji_smileys">😀</string>
+    <string name="emoji_animals">🐶</string>
+    <string name="emoji_food">🍕</string>
+    <string name="emoji_activities">⚽</string>
+    <string name="emoji_travel">🚗</string>
+    <string name="emoji_objects">💡</string>
+    <string name="emoji_symbols">❤️</string>
+    <string name="emoji_flags">🏁</string>
+
+    <string name="clipboard_title">Clipboard</string>
+    <string name="clipboard_empty">Nothing copied yet</string>
+    <string name="clipboard_pin">Pin</string>
+    <string name="clipboard_unpin">Unpin</string>
+    <string name="clipboard_clear">Clear all</string>
+
+    <string name="about_version">Version %1$s</string>
+    <string name="about_description">A privacy-friendly, fully-customizable Android keyboard. All data stays on your device.</string>
+</resources>
