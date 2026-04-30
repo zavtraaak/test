@@ -1,31 +1,21 @@
-# Flutter / Dart build artefacts
-.dart_tool/
-.flutter-plugins
-.flutter-plugins-dependencies
-.packages
-build/
-.pub-cache/
-.pub/
-**/.dart_tool/
-**/build/
-**/.flutter-plugins
-**/.flutter-plugins-dependencies
-**/.packages
-**/Generated.xcconfig
-**/generated_plugin_registrant.*
-
-# IDE
-.idea/
-.vscode/
-*.iml
-.metadata
-
-# OS
+.gradle/
+local.properties
 .DS_Store
-Thumbs.db
+build/
+captures/
+.idea/
+*.iml
+*~
+.weblate
+.kotlin
+*.class
+app/debug/
+app/release/
 
-# Android
-android/.gradle/
-android/local.properties
-android/app/release/
-**/.gradle/
+# vscode / eclipse files
+*.classpath
+*.project
+*.settings
+bin/
+.vscode/
+*.code-workspace
