@@ -1,31 +1,26 @@
-# Flutter / Dart build artefacts
-.dart_tool/
-.flutter-plugins
-.flutter-plugins-dependencies
-.packages
-build/
-.pub-cache/
-.pub/
-**/.dart_tool/
-**/build/
-**/.flutter-plugins
-**/.flutter-plugins-dependencies
-**/.packages
-**/Generated.xcconfig
-**/generated_plugin_registrant.*
-
-# IDE
-.idea/
-.vscode/
+# Android / Gradle
 *.iml
-.metadata
+.gradle/
+.idea/
+.kotlin/
+local.properties
+.cxx/
+build/
+**/build/
+captures/
+.externalNativeBuild/
+*.apk
+*.aab
+*.apks
+*.ap_
+*.dex
+*.class
+*.hprof
+
+# Keystore (do not commit signing keys)
+*.jks
+*.keystore
 
 # OS
 .DS_Store
 Thumbs.db
-
-# Android
-android/.gradle/
-android/local.properties
-android/app/release/
-**/.gradle/
