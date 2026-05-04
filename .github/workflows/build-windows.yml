@@ -1,0 +1,43 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        working-directory: pc_game
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install pyinstaller
+
+      - name: Smoke test
+        working-directory: pc_game
+        env:
+          SDL_VIDEODRIVER: dummy
+        run: |
+          python -c "import pygame, sys; pygame.init(); from eternal_depths.engine import Engine; e = Engine(); e.start_new_game('CI','Human','Warrior'); print('OK', e.state.player.depth)"
+
+      - name: Build EXE
+        working-directory: pc_game
+        run: |
+          pyinstaller --onefile --windowed --name EternalDepths --collect-all pygame game.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: EternalDepths-windows
+          path: pc_game/dist/EternalDepths.exe
+          if-no-files-found: error

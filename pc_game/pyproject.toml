@@ -1,0 +1,6 @@
+[project]
+name = "eternal-depths"
+version = "1.0.0"
+description = "A deep procedural roguelike RPG."
+requires-python = ">=3.10"
+dependencies = ["pygame>=2.5"]
